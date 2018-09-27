@@ -217,11 +217,18 @@ To compile for all supported OSs, `goxz` is required.
 go get github.com/Songmu/goxz/cmd/goxz
 ```
 
+To generate version number, `gobump` is required.
+
+```
+go get github.com/motemen/gobump/cmd/gobump
+```
+
 Check dependencies and build. The binaries will be in the `tfnotify/dist` folder.
 
 ```
 cd tfnotify
 dep ensure
+gobump minor
 make crossbuild
 ```
 
