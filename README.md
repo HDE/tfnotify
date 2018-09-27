@@ -205,6 +205,26 @@ Currently, supported CI are here:
 - Circle CI
 - Travis CI
 
+## Building Binaries
+
+Set up a Go workspace and clone the repo into `src`.
+
+Install `dep` to check for dependencies.
+
+To compile for all supported OSs, `goxz` is required.
+
+```
+go get github.com/Songmu/goxz/cmd/goxz
+```
+
+Check dependencies and build. The binaries will be in the `tfnotify/dist` folder.
+
+```
+cd tfnotify
+dep ensure
+make crossbuild
+```
+
 ### Private Repository Considerations
 GitHub private repositories require the `repo` and `write:discussion` permissions.
 
