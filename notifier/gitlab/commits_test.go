@@ -1,4 +1,4 @@
-package github
+package gitlab
 
 import (
 	"testing"
@@ -86,52 +86,6 @@ func TestCommitsLastOne(t *testing.T) {
 		}
 		if commit != testCase.lastRev {
 			t.Errorf("got %q but want %q", commit, testCase.lastRev)
-		}
-	}
-}
-
-func TestMergedPRNumber(t *testing.T) {
-	testCases := []struct {
-		prNumber int
-		ok       bool
-		revision string
-	}{
-		{
-			prNumber: 1,
-			ok:       true,
-			revision: "Merge pull request #1 from mercari/tfnotify",
-		},
-		{
-			prNumber: 123,
-			ok:       true,
-			revision: "Merge pull request #123 from mercari/tfnotify",
-		},
-		{
-			prNumber: 0,
-			ok:       false,
-			revision: "destroyed the world",
-		},
-		{
-			prNumber: 0,
-			ok:       false,
-			revision: "Merge pull request #string from mercari/tfnotify",
-		},
-	}
-
-	for _, testCase := range testCases {
-		cfg := newFakeConfig()
-		client, err := NewClient(cfg)
-		if err != nil {
-			t.Fatal(err)
-		}
-		api := newFakeAPI()
-		client.API = &api
-		prNumber, err := client.Commits.MergedPRNumber(testCase.revision)
-		if (err == nil) != testCase.ok {
-			t.Errorf("got error %q", err)
-		}
-		if prNumber != testCase.prNumber {
-			t.Errorf("got %q but want %q", prNumber, testCase.prNumber)
 		}
 	}
 }

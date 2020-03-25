@@ -21,12 +21,21 @@ type Config struct {
 
 // Notifier is a notification notifier
 type Notifier struct {
-	Github GithubNotifier `yaml:"github"`
-	Slack  SlackNotifier  `yaml:"slack"`
+	Github   GithubNotifier   `yaml:"github"`
+	Gitlab   GitlabNotifier   `yaml:"gitlab"`
+	Slack    SlackNotifier    `yaml:"slack"`
+	Typetalk TypetalkNotifier `yaml:"typetalk"`
 }
 
 // GithubNotifier is a notifier for GitHub
 type GithubNotifier struct {
+	Token      string     `yaml:"token"`
+	BaseURL    string     `yaml:"base_url"`
+	Repository Repository `yaml:"repository"`
+}
+
+// GitlabNotifier is a notifier for GitLab
+type GitlabNotifier struct {
 	Token      string     `yaml:"token"`
 	BaseURL    string     `yaml:"base_url"`
 	Repository Repository `yaml:"repository"`
@@ -45,12 +54,19 @@ type SlackNotifier struct {
 	Bot     string `yaml:"bot"`
 }
 
+// TypetalkNotifier is a notifier for Typetalk
+type TypetalkNotifier struct {
+	Token   string `yaml:"token"`
+	TopicID string `yaml:"topic_id"`
+}
+
 // Terraform represents terraform configurations
 type Terraform struct {
-	Default Default `yaml:"default"`
-	Fmt     Fmt     `yaml:"fmt"`
-	Plan    Plan    `yaml:"plan"`
-	Apply   Apply   `yaml:"apply"`
+	Default      Default `yaml:"default"`
+	Fmt          Fmt     `yaml:"fmt"`
+	Plan         Plan    `yaml:"plan"`
+	Apply        Apply   `yaml:"apply"`
+	UseRawOutput bool    `yaml:"use_raw_output,omitempty"`
 }
 
 // Default is a default setting for terraform commands
@@ -65,6 +81,12 @@ type Fmt struct {
 
 // Plan is a terraform plan config
 type Plan struct {
+	Template    string      `yaml:"template"`
+	WhenDestroy WhenDestroy `yaml:"when_destroy,omitempty"`
+}
+
+// WhenDestroy is a configuration to notify the plan result contains destroy operation
+type WhenDestroy struct {
 	Template string `yaml:"template"`
 }
 
@@ -91,7 +113,17 @@ func (cfg *Config) Validation() error {
 		return errors.New("ci: need to be set")
 	case "circleci", "circle-ci":
 		// ok pattern
+	case "gitlabci", "gitlab-ci":
+		// ok pattern
 	case "travis", "travisci", "travis-ci":
+		// ok pattern
+	case "codebuild":
+		// ok pattern
+	case "teamcity":
+		// ok pattern
+	case "drone":
+		// ok pattern
+	case "jenkins":
 		// ok pattern
 	default:
 		return fmt.Errorf("%s: not supported yet", cfg.CI)
@@ -104,9 +136,22 @@ func (cfg *Config) Validation() error {
 			return fmt.Errorf("repository name is missing")
 		}
 	}
+	if cfg.isDefinedGitlab() {
+		if cfg.Notifier.Gitlab.Repository.Owner == "" {
+			return fmt.Errorf("repository owner is missing")
+		}
+		if cfg.Notifier.Gitlab.Repository.Name == "" {
+			return fmt.Errorf("repository name is missing")
+		}
+	}
 	if cfg.isDefinedSlack() {
 		if cfg.Notifier.Slack.Channel == "" {
 			return fmt.Errorf("slack channel id is missing")
+		}
+	}
+	if cfg.isDefinedTypetalk() {
+		if cfg.Notifier.Typetalk.TopicID == "" {
+			return fmt.Errorf("Typetalk topic id is missing")
 		}
 	}
 	notifier := cfg.GetNotifierType()
@@ -121,9 +166,19 @@ func (cfg *Config) isDefinedGithub() bool {
 	return cfg.Notifier.Github != (GithubNotifier{})
 }
 
+func (cfg *Config) isDefinedGitlab() bool {
+	// not empty
+	return cfg.Notifier.Gitlab != (GitlabNotifier{})
+}
+
 func (cfg *Config) isDefinedSlack() bool {
 	// not empty
 	return cfg.Notifier.Slack != (SlackNotifier{})
+}
+
+func (cfg *Config) isDefinedTypetalk() bool {
+	// not empty
+	return cfg.Notifier.Typetalk != (TypetalkNotifier{})
 }
 
 // GetNotifierType return notifier type described in Config
@@ -131,8 +186,14 @@ func (cfg *Config) GetNotifierType() string {
 	if cfg.isDefinedGithub() {
 		return "github"
 	}
+	if cfg.isDefinedGitlab() {
+		return "gitlab"
+	}
 	if cfg.isDefinedSlack() {
 		return "slack"
+	}
+	if cfg.isDefinedTypetalk() {
+		return "typetalk"
 	}
 	return ""
 }

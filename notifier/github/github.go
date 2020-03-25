@@ -13,6 +13,7 @@ type API interface {
 	IssuesListComments(ctx context.Context, number int, opt *github.IssueListCommentsOptions) ([]*github.IssueComment, *github.Response, error)
 	RepositoriesCreateComment(ctx context.Context, sha string, comment *github.RepositoryComment) (*github.RepositoryComment, *github.Response, error)
 	RepositoriesListCommits(ctx context.Context, opt *github.CommitsListOptions) ([]*github.RepositoryCommit, *github.Response, error)
+	RepositoriesGetCommit(ctx context.Context, sha string) (*github.RepositoryCommit, *github.Response, error)
 }
 
 // GitHub represents the attribute information necessary for requesting GitHub API
@@ -28,7 +29,7 @@ func (g *GitHub) IssuesCreateComment(ctx context.Context, number int, comment *g
 
 // IssuesDeleteComment is a wrapper of https://godoc.org/github.com/google/go-github/github#IssuesService.DeleteComment
 func (g *GitHub) IssuesDeleteComment(ctx context.Context, commentID int64) (*github.Response, error) {
-	return g.Client.Issues.DeleteComment(ctx, g.owner, g.repo, int(commentID))
+	return g.Client.Issues.DeleteComment(ctx, g.owner, g.repo, int64(commentID))
 }
 
 // IssuesListComments is a wrapper of https://godoc.org/github.com/google/go-github/github#IssuesService.ListComments
@@ -44,4 +45,9 @@ func (g *GitHub) RepositoriesCreateComment(ctx context.Context, sha string, comm
 // RepositoriesListCommits is a wrapper of https://godoc.org/github.com/google/go-github/github#RepositoriesService.ListCommits
 func (g *GitHub) RepositoriesListCommits(ctx context.Context, opt *github.CommitsListOptions) ([]*github.RepositoryCommit, *github.Response, error) {
 	return g.Client.Repositories.ListCommits(ctx, g.owner, g.repo, opt)
+}
+
+// RepositoriesGetCommit is a wrapper of https://godoc.org/github.com/google/go-github/github#RepositoriesService.GetCommit
+func (g *GitHub) RepositoriesGetCommit(ctx context.Context, sha string) (*github.RepositoryCommit, *github.Response, error) {
+	return g.Client.Repositories.GetCommit(ctx, g.owner, g.repo, sha)
 }

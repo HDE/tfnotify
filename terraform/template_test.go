@@ -22,6 +22,7 @@ func TestDefaultTemplateExecute(t *testing.T) {
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>
 </code></pre></details>
 `,
@@ -39,6 +40,7 @@ message
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>
 </code></pre></details>
 `,
@@ -59,6 +61,7 @@ b
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>c
 </code></pre></details>
 `,
@@ -80,7 +83,73 @@ b
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>c
+</code></pre></details>
+`,
+		},
+		{
+			template: "",
+			value: CommonTemplate{
+				Title:   "a",
+				Message: "b",
+				Result:  `This is a "result".`,
+				Body:    "d",
+			},
+			resp: `
+a
+
+b
+
+
+
+<details><summary>Details (Click me)</summary>
+
+<pre><code>This is a &#34;result&#34;.
+</code></pre></details>
+`,
+		},
+		{
+			template: "",
+			value: CommonTemplate{
+				Title:        "a",
+				Message:      "b",
+				Result:       `This is a "result".`,
+				Body:         "d",
+				UseRawOutput: true,
+			},
+			resp: `
+a
+
+b
+
+
+
+<details><summary>Details (Click me)</summary>
+
+<pre><code>This is a "result".
+</code></pre></details>
+`,
+		},
+		{
+			template: "",
+			value: CommonTemplate{
+				Title:        "a",
+				Message:      "b",
+				Result:       `This is a "result".`,
+				Body:         "d",
+				UseRawOutput: true,
+			},
+			resp: `
+a
+
+b
+
+
+
+<details><summary>Details (Click me)</summary>
+
+<pre><code>This is a "result".
 </code></pre></details>
 `,
 		},
@@ -180,6 +249,43 @@ c
 `,
 		},
 		{
+			template: "",
+			value: CommonTemplate{
+				Title:   "a",
+				Message: "b",
+				Result:  `This is a "result".`,
+				Body:    "d",
+			},
+			resp: `
+a
+
+b
+
+
+
+This is a &#34;result&#34;.
+`,
+		},
+		{
+			template: "",
+			value: CommonTemplate{
+				Title:        "a",
+				Message:      "b",
+				Result:       `This is a "result".`,
+				Body:         "d",
+				UseRawOutput: true,
+			},
+			resp: `
+a
+
+b
+
+
+
+This is a "result".
+`,
+		},
+		{
 			template: `{{ .Title }}-{{ .Message }}-{{ .Result }}-{{ .Body }}`,
 			value: CommonTemplate{
 				Title:   "a",
@@ -220,6 +326,7 @@ func TestPlanTemplateExecute(t *testing.T) {
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>
 </code></pre></details>
 `,
@@ -243,6 +350,7 @@ message
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>body
 </code></pre></details>
 `,
@@ -263,7 +371,51 @@ message
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>body
+</code></pre></details>
+`,
+		},
+		{
+			template: DefaultPlanTemplate,
+			value: CommonTemplate{
+				Title:   "title",
+				Message: "message",
+				Result:  "",
+				Body:    `This is a "body".`,
+			},
+			resp: `
+title
+
+message
+
+
+
+<details><summary>Details (Click me)</summary>
+
+<pre><code>This is a &#34;body&#34;.
+</code></pre></details>
+`,
+		},
+		{
+			template: DefaultPlanTemplate,
+			value: CommonTemplate{
+				Title:        "title",
+				Message:      "message",
+				Result:       "",
+				Body:         `This is a "body".`,
+				UseRawOutput: true,
+			},
+			resp: `
+title
+
+message
+
+
+
+<details><summary>Details (Click me)</summary>
+
+<pre><code>This is a "body".
 </code></pre></details>
 `,
 		},
@@ -283,6 +435,7 @@ message
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>body
 </code></pre></details>
 `,
@@ -311,6 +464,110 @@ message
 	}
 }
 
+func TestDestroyWarningTemplateExecute(t *testing.T) {
+	testCases := []struct {
+		template string
+		value    CommonTemplate
+		resp     string
+	}{
+		{
+			template: DefaultDestroyWarningTemplate,
+			value:    CommonTemplate{},
+			resp: `
+## WARNING: Resource Deletion will happen
+
+This plan contains resource delete operation. Please check the plan result very carefully!
+
+
+`,
+		},
+		{
+			template: DefaultDestroyWarningTemplate,
+			value: CommonTemplate{
+				Title:  "title",
+				Result: `This is a "result".`,
+			},
+			resp: `
+title
+
+This plan contains resource delete operation. Please check the plan result very carefully!
+
+
+<pre><code>This is a &#34;result&#34;.
+</code></pre>
+
+`,
+		},
+		{
+			template: DefaultDestroyWarningTemplate,
+			value: CommonTemplate{
+				Title:        "title",
+				Result:       `This is a "result".`,
+				UseRawOutput: true,
+			},
+			resp: `
+title
+
+This plan contains resource delete operation. Please check the plan result very carefully!
+
+
+<pre><code>This is a "result".
+</code></pre>
+
+`,
+		},
+		{
+			template: DefaultDestroyWarningTemplate,
+			value: CommonTemplate{
+				Title:  "title",
+				Result: "",
+			},
+			resp: `
+title
+
+This plan contains resource delete operation. Please check the plan result very carefully!
+
+
+`,
+		},
+		{
+			template: "",
+			value: CommonTemplate{
+				Title:  "title",
+				Result: "",
+			},
+			resp: `
+title
+
+This plan contains resource delete operation. Please check the plan result very carefully!
+
+
+`,
+		},
+		{
+			template: `{{ .Title }}-{{ .Message }}-{{ .Result }}-{{ .Body }}`,
+			value: CommonTemplate{
+				Title:   "a",
+				Message: "b",
+				Result:  "c",
+				Body:    "d",
+			},
+			resp: `a-b-c-d`,
+		},
+	}
+	for _, testCase := range testCases {
+		template := NewDestroyWarningTemplate(testCase.template)
+		template.SetValue(testCase.value)
+		resp, err := template.Execute()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp != testCase.resp {
+			t.Errorf("got %q but want %q", resp, testCase.resp)
+		}
+	}
+}
+
 func TestApplyTemplateExecute(t *testing.T) {
 	testCases := []struct {
 		template string
@@ -328,6 +585,7 @@ func TestApplyTemplateExecute(t *testing.T) {
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>
 </code></pre></details>
 `,
@@ -351,6 +609,7 @@ message
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>body
 </code></pre></details>
 `,
@@ -371,6 +630,7 @@ message
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>body
 </code></pre></details>
 `,
@@ -391,7 +651,51 @@ message
 
 
 <details><summary>Details (Click me)</summary>
+
 <pre><code>body
+</code></pre></details>
+`,
+		},
+		{
+			template: "",
+			value: CommonTemplate{
+				Title:   "title",
+				Message: "message",
+				Result:  "",
+				Body:    `This is a "body".`,
+			},
+			resp: `
+title
+
+message
+
+
+
+<details><summary>Details (Click me)</summary>
+
+<pre><code>This is a &#34;body&#34;.
+</code></pre></details>
+`,
+		},
+		{
+			template: "",
+			value: CommonTemplate{
+				Title:        "title",
+				Message:      "message",
+				Result:       "",
+				Body:         `This is a "body".`,
+				UseRawOutput: true,
+			},
+			resp: `
+title
+
+message
+
+
+
+<details><summary>Details (Click me)</summary>
+
+<pre><code>This is a "body".
 </code></pre></details>
 `,
 		},
@@ -445,7 +749,7 @@ func TestGetValue(t *testing.T) {
 		template := testCase.template
 		value := template.GetValue()
 		if !reflect.DeepEqual(value, testCase.expected) {
-			t.Errorf("got %q but want %q", value, testCase.expected)
+			t.Errorf("got %#v but want %#v", value, testCase.expected)
 		}
 	}
 }

@@ -1,10 +1,12 @@
 tfnotify
 ========
 
-[![][circleci-svg]][circleci] [![][codecov-svg]][codecov] [![][goreportcard-svg]][goreportcard]
+[![][release-svg]][release] [![][test-svg]][test] [![][codecov-svg]][codecov] [![][goreportcard-svg]][goreportcard]
 
-[circleci]: https://circleci.com/gh/mercari/tfnotify/tree/master
-[circleci-svg]: https://circleci.com/gh/mercari/tfnotify/tree/master.svg?style=svg
+[release]: https://github.com/mercari/tfnotify/actions?query=workflow%3Arelease
+[release-svg]: https://github.com/mercari/tfnotify/workflows/release/badge.svg
+[test]: https://github.com/mercari/tfnotify/actions?query=workflow%3Atest
+[test-svg]: https://github.com/mercari/tfnotify/workflows/test/badge.svg
 [codecov]: https://codecov.io/gh/mercari/tfnotify
 [codecov-svg]: https://codecov.io/gh/mercari/tfnotify/branch/master/graph/badge.svg
 [goreportcard]: https://goreportcard.com/report/github.com/mercari/tfnotify
@@ -22,6 +24,8 @@ You can do this by using this command.
 <img src="./misc/images/1.png" width="600">
 
 <img src="./misc/images/2.png" width="500">
+
+<img src="./misc/images/3.png" width="600">
 
 ## Installation
 
@@ -60,7 +64,7 @@ For `plan` command, you also need to specify `plan` as the argument of tfnotify.
 
 When running tfnotify, you can specify the configuration path via `--config` option (if it's omitted, it defaults to `{.,}tfnotify.y{,a}ml`).
 
-The example settings of GitHub, GitHub Enterprise and Slack are as follows. Incidentally, there is no need to replace TOKEN string such as `$GITHUB_TOKEN` with the actual token. Instead, it must be defined as environment variables in CI settings.
+The example settings of GitHub and GitHub Enterprise, Slack, [Typetalk](https://www.typetalk.com/) are as follows. Incidentally, there is no need to replace TOKEN string such as `$GITHUB_TOKEN` with the actual token. Instead, it must be defined as environment variables in CI settings.
 
 [template](https://golang.org/pkg/text/template/) of Go can be used for `template`. The templates can be used in `tfnotify.yaml` are as follows:
 
@@ -71,6 +75,8 @@ Placeholder | Usage
 `{{ .Result }}` | Matched result by parsing like `Plan: 1 to add` or `No changes`
 `{{ .Body }}` | The entire of Terraform execution result
 `{{ .Link }}` | The link of the build page on CI
+
+On GitHub, tfnotify can also put a warning message if the plan result contains resource deletion (optional).
 
 #### Template Examples
 
@@ -101,24 +107,82 @@ terraform:
       {{ .Title }} <sup>[CI link]( {{ .Link }} )</sup>
       {{ .Message }}
       {{if .Result}}
-      <pre><code> {{ .Result }}
+      <pre><code>{{ .Result }}
       </pre></code>
       {{end}}
       <details><summary>Details (Click me)</summary>
-      <pre><code> {{ .Body }}
+
+      <pre><code>{{ .Body }}
       </pre></code></details>
   apply:
     template: |
       {{ .Title }}
       {{ .Message }}
       {{if .Result}}
-      <pre><code> {{ .Result }}
+      <pre><code>{{ .Result }}
       </pre></code>
       {{end}}
       <details><summary>Details (Click me)</summary>
-      <pre><code> {{ .Body }}
+
+      <pre><code>{{ .Body }}
       </pre></code></details>
 ```
+
+If you would like to let tfnotify warn the resource deletion, add `when_destroy` configuration as below.
+
+```yaml
+---
+# ...
+terraform:
+  # ...
+  plan:
+    template: |
+      {{ .Title }} <sup>[CI link]( {{ .Link }} )</sup>
+      {{ .Message }}
+      {{if .Result}}
+      <pre><code>{{ .Result }}
+      </pre></code>
+      {{end}}
+      <details><summary>Details (Click me)</summary>
+
+      <pre><code>{{ .Body }}
+      </pre></code></details>
+    when_destroy:
+      template: |
+        ## :warning: WARNING: Resource Deletion will happen :warning:
+
+        This plan contains **resource deletion**. Please check the plan result very carefully!
+  # ...
+```
+
+Sometimes you may want not to HTML-escape Terraform command outputs.
+For example, when you use code block to print command output, it's better to use raw characters instead of character references (e.g. `-/+` -> `-/&#43;`, `"` -> `&#34;`).
+
+You can disable HTML escape by adding `use_raw_output: true` configuration.
+With this configuration, Terraform doesn't HTML-escape any Terraform output.
+
+~~~yaml
+---
+# ...
+terraform:
+  use_raw_output: true
+  # ...
+  plan:
+    template: |
+      {{ .Title }} <sup>[CI link]( {{ .Link }} )</sup>
+      {{ .Message }}
+      {{if .Result}}
+      ```
+      {{ .Result }}
+      ```
+      {{end}}
+      <details><summary>Details (Click me)</summary>
+
+      ```
+      {{ .Body }}
+      ```
+  # ...
+~~~
 
 </details>
 
@@ -131,7 +195,58 @@ ci: circleci
 notifier:
   github:
     token: $GITHUB_TOKEN
-    base_url: $GITHUB_BASE_URL
+    base_url: $GITHUB_BASE_URL # Example: https://github.example.com/api/v3
+    repository:
+      owner: "mercari"
+      name: "tfnotify"
+terraform:
+  fmt:
+    template: |
+      {{ .Title }}
+
+      {{ .Message }}
+
+      {{ .Result }}
+
+      {{ .Body }}
+  plan:
+    template: |
+      {{ .Title }} <sup>[CI link]( {{ .Link }} )</sup>
+      {{ .Message }}
+      {{if .Result}}
+      <pre><code>{{ .Result }}
+      </pre></code>
+      {{end}}
+      <details><summary>Details (Click me)</summary>
+
+      <pre><code>{{ .Body }}
+      </pre></code></details>
+  apply:
+    template: |
+      {{ .Title }}
+      {{ .Message }}
+      {{if .Result}}
+      <pre><code>{{ .Result }}
+      </pre></code>
+      {{end}}
+      <details><summary>Details (Click me)</summary>
+
+      <pre><code>{{ .Body }}
+      </pre></code></details>
+```
+
+</details>
+
+<details>
+<summary>For GitLab</summary>
+
+```yaml
+---
+ci: gitlabci
+notifier:
+  gitlab:
+    token: $GITLAB_TOKEN
+    base_url: $GITLAB_BASE_URL
     repository:
       owner: "mercari"
       name: "tfnotify"
@@ -168,7 +283,6 @@ terraform:
       <pre><code> {{ .Body }}
       </pre></code></details>
 ```
-
 </details>
 
 <details>
@@ -198,12 +312,43 @@ terraform:
 
 </details>
 
+<details>
+<summary>For Typetalk</summary>
+
+```yaml
+---
+ci: circleci
+notifier:
+  typetalk:
+    token: $TYPETALK_TOKEN
+    topic_id: $TYPETALK_TOPIC_ID
+terraform:
+  plan:
+    template: |
+      {{ .Message }}
+      {{if .Result}}
+      ```
+      {{ .Result }}
+      ```
+      {{end}}
+      ```
+      {{ .Body }}
+      ```
+```
+
+</details>
+
 ### Supported CI
 
 Currently, supported CI are here:
 
 - Circle CI
 - Travis CI
+- AWS CodeBuild
+- TeamCity
+- Drone
+- Jenkins
+- GitLab CI
 
 ## Building Binaries
 
@@ -235,6 +380,11 @@ make crossbuild
 ### Private Repository Considerations
 GitHub private repositories require the `repo` and `write:discussion` permissions.
 
+### Jenkins Considerations
+- Plugin
+  - [Git Plugin](https://wiki.jenkins.io/display/JENKINS/Git+Plugin)
+- Environment Variable
+  - `PULL_REQUEST_NUMBER` or `PULL_REQUEST_URL` are required to set by user for Pull Request Usage
 
 ## Committers
 

@@ -5,12 +5,18 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mercari/tfnotify/terraform"
 	"github.com/lestrrat-go/slack"
+	"github.com/mercari/tfnotify/terraform"
 )
 
 // EnvToken is Slack API Token
 const EnvToken = "SLACK_TOKEN"
+
+// EnvChannelID is Slack channel ID
+const EnvChannelID = "SLACK_CHANNEL_ID"
+
+// EnvBotName is Slack bot name
+const EnvBotName = "SLACK_BOT_NAME"
 
 // Client is a API client for Slack
 type Client struct {
@@ -25,11 +31,12 @@ type Client struct {
 	API API
 }
 
-// Config is a configuration for GitHub client
+// Config is a configuration for Slack client
 type Config struct {
 	Token    string
 	Channel  string
 	Botname  string
+	Title    string
 	Message  string
 	CI       string
 	Parser   terraform.Parser
@@ -50,6 +57,19 @@ func NewClient(cfg Config) (*Client, error) {
 	if token == "" {
 		return &Client{}, errors.New("slack token is missing")
 	}
+
+	channel := cfg.Channel
+	channel = strings.TrimPrefix(channel, "$")
+	if channel == EnvChannelID {
+		channel = os.Getenv(EnvChannelID)
+	}
+
+	botname := cfg.Botname
+	botname = strings.TrimPrefix(botname, "$")
+	if botname == EnvBotName {
+		botname = os.Getenv(EnvBotName)
+	}
+
 	client := slack.New(token)
 	c := &Client{
 		Config: cfg,
@@ -59,8 +79,8 @@ func NewClient(cfg Config) (*Client, error) {
 	c.Notify = (*NotifyService)(&c.common)
 	c.API = &Slack{
 		Client:  client,
-		Channel: cfg.Channel,
-		Botname: cfg.Botname,
+		Channel: channel,
+		Botname: botname,
 	}
 	return c, nil
 }

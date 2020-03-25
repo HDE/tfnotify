@@ -8,7 +8,9 @@ import (
 	"github.com/mercari/tfnotify/config"
 	"github.com/mercari/tfnotify/notifier"
 	"github.com/mercari/tfnotify/notifier/github"
+	"github.com/mercari/tfnotify/notifier/gitlab"
 	"github.com/mercari/tfnotify/notifier/slack"
+	"github.com/mercari/tfnotify/notifier/typetalk"
 	"github.com/mercari/tfnotify/terraform"
 
 	"github.com/urfave/cli"
@@ -17,14 +19,17 @@ import (
 const (
 	name        = "tfnotify"
 	description = "Notify the execution result of terraform command"
-	version     = "0.1.4"
+
+	version = "unset"
 )
 
 type tfnotify struct {
-	config   config.Config
-	context  *cli.Context
-	parser   terraform.Parser
-	template terraform.Template
+	config                 config.Config
+	context                *cli.Context
+	parser                 terraform.Parser
+	template               terraform.Template
+	destroyWarningTemplate terraform.Template
+	warnDestroy            bool
 }
 
 // Run sends the notification with notifier
@@ -44,6 +49,31 @@ func (t *tfnotify) Run() error {
 		}
 	case "travis", "travisci", "travis-ci":
 		ci, err = travisci()
+		if err != nil {
+			return err
+		}
+	case "codebuild":
+		ci, err = codebuild()
+		if err != nil {
+			return err
+		}
+	case "teamcity":
+		ci, err = teamcity()
+		if err != nil {
+			return err
+		}
+	case "drone":
+		ci, err = drone()
+		if err != nil {
+			return err
+		}
+	case "jenkins":
+		ci, err = jenkins()
+		if err != nil {
+			return err
+		}
+	case "gitlabci", "gitlab-ci":
+		ci, err = gitlabci()
 		if err != nil {
 			return err
 		}
@@ -67,8 +97,34 @@ func (t *tfnotify) Run() error {
 			Owner:   t.config.Notifier.Github.Repository.Owner,
 			Repo:    t.config.Notifier.Github.Repository.Name,
 			PR: github.PullRequest{
+				Revision:              ci.PR.Revision,
+				Number:                ci.PR.Number,
+				Title:                 t.context.String("title"),
+				Message:               t.context.String("message"),
+				DestroyWarningTitle:   t.context.String("destroy-warning-title"),
+				DestroyWarningMessage: t.context.String("destroy-warning-message"),
+			},
+			CI:                     ci.URL,
+			Parser:                 t.parser,
+			UseRawOutput:           t.config.Terraform.UseRawOutput,
+			Template:               t.template,
+			DestroyWarningTemplate: t.destroyWarningTemplate,
+			WarnDestroy:            t.warnDestroy,
+		})
+		if err != nil {
+			return err
+		}
+		notifier = client.Notify
+	case "gitlab":
+		client, err := gitlab.NewClient(gitlab.Config{
+			Token:     t.config.Notifier.Gitlab.Token,
+			BaseURL:   t.config.Notifier.Gitlab.BaseURL,
+			NameSpace: t.config.Notifier.Gitlab.Repository.Owner,
+			Project:   t.config.Notifier.Gitlab.Repository.Name,
+			MR: gitlab.MergeRequest{
 				Revision: ci.PR.Revision,
 				Number:   ci.PR.Number,
+				Title:    t.context.String("title"),
 				Message:  t.context.String("message"),
 			},
 			CI:       ci.URL,
@@ -84,6 +140,21 @@ func (t *tfnotify) Run() error {
 			Token:    t.config.Notifier.Slack.Token,
 			Channel:  t.config.Notifier.Slack.Channel,
 			Botname:  t.config.Notifier.Slack.Bot,
+			Title:    t.context.String("title"),
+			Message:  t.context.String("message"),
+			CI:       ci.URL,
+			Parser:   t.parser,
+			Template: t.template,
+		})
+		if err != nil {
+			return err
+		}
+		notifier = client.Notify
+	case "typetalk":
+		client, err := typetalk.NewClient(typetalk.Config{
+			Token:    t.config.Notifier.Typetalk.Token,
+			TopicID:  t.config.Notifier.Typetalk.TopicID,
+			Title:    t.context.String("title"),
 			Message:  t.context.String("message"),
 			CI:       ci.URL,
 			Parser:   t.parser,
@@ -123,6 +194,10 @@ func main() {
 			Action: cmdFmt,
 			Flags: []cli.Flag{
 				cli.StringFlag{
+					Name:  "title, t",
+					Usage: "Specify the title to use for notification",
+				},
+				cli.StringFlag{
 					Name:  "message, m",
 					Usage: "Specify the message to use for notification",
 				},
@@ -134,8 +209,20 @@ func main() {
 			Action: cmdPlan,
 			Flags: []cli.Flag{
 				cli.StringFlag{
+					Name:  "title, t",
+					Usage: "Specify the title to use for notification",
+				},
+				cli.StringFlag{
 					Name:  "message, m",
 					Usage: "Specify the message to use for notification",
+				},
+				cli.StringFlag{
+					Name:  "destroy-warning-title",
+					Usage: "Specify the title to use for destroy warning notification",
+				},
+				cli.StringFlag{
+					Name:  "destroy-warning-message",
+					Usage: "Specify the message to use for destroy warning notification",
 				},
 			},
 		},
@@ -144,6 +231,10 @@ func main() {
 			Usage:  "Parse stdin as a apply result",
 			Action: cmdApply,
 			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "title, t",
+					Usage: "Specify the title to use for notification",
+				},
 				cli.StringFlag{
 					Name:  "message, m",
 					Usage: "Specify the message to use for notification",
@@ -189,11 +280,17 @@ func cmdPlan(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
+	// If when_destroy is not defined in configuration, tfnotify should not notify it
+	warnDestroy := cfg.Terraform.Plan.WhenDestroy.Template != ""
+
 	t := &tfnotify{
-		config:   cfg,
-		context:  ctx,
-		parser:   terraform.NewPlanParser(),
-		template: terraform.NewPlanTemplate(cfg.Terraform.Plan.Template),
+		config:                 cfg,
+		context:                ctx,
+		parser:                 terraform.NewPlanParser(),
+		template:               terraform.NewPlanTemplate(cfg.Terraform.Plan.Template),
+		destroyWarningTemplate: terraform.NewDestroyWarningTemplate(cfg.Terraform.Plan.WhenDestroy.Template),
+		warnDestroy:            warnDestroy,
 	}
 	return t.Run()
 }

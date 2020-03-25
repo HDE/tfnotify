@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/mercari/tfnotify/terraform"
 	"github.com/lestrrat-go/slack/objects"
+	"github.com/mercari/tfnotify/terraform"
 )
 
 // NotifyService handles communication with the notification related
@@ -39,6 +39,7 @@ func (s *NotifyService) Notify(body string) (exit int, err error) {
 	}
 
 	template.SetValue(terraform.CommonTemplate{
+		Title:   cfg.Title,
 		Message: cfg.Message,
 		Result:  result.Result,
 		Body:    body,

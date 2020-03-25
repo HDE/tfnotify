@@ -1,4 +1,4 @@
-package github
+package gitlab
 
 import (
 	"testing"
@@ -16,10 +16,10 @@ func TestNotifyNotify(t *testing.T) {
 		{
 			// invalid body (cannot parse)
 			config: Config{
-				Token: "token",
-				Owner: "owner",
-				Repo:  "repo",
-				PR: PullRequest{
+				Token:     "token",
+				NameSpace: "namespace",
+				Project:   "project",
+				MR: MergeRequest{
 					Revision: "abcd",
 					Number:   1,
 					Message:  "message",
@@ -34,10 +34,10 @@ func TestNotifyNotify(t *testing.T) {
 		{
 			// invalid pr
 			config: Config{
-				Token: "token",
-				Owner: "owner",
-				Repo:  "repo",
-				PR: PullRequest{
+				Token:     "token",
+				NameSpace: "owner",
+				Project:   "repo",
+				MR: MergeRequest{
 					Revision: "",
 					Number:   0,
 					Message:  "message",
@@ -52,10 +52,10 @@ func TestNotifyNotify(t *testing.T) {
 		{
 			// valid, error
 			config: Config{
-				Token: "token",
-				Owner: "owner",
-				Repo:  "repo",
-				PR: PullRequest{
+				Token:     "token",
+				NameSpace: "owner",
+				Project:   "repo",
+				MR: MergeRequest{
 					Revision: "",
 					Number:   1,
 					Message:  "message",
@@ -70,10 +70,10 @@ func TestNotifyNotify(t *testing.T) {
 		{
 			// valid, and isPR
 			config: Config{
-				Token: "token",
-				Owner: "owner",
-				Repo:  "repo",
-				PR: PullRequest{
+				Token:     "token",
+				NameSpace: "owner",
+				Project:   "repo",
+				MR: MergeRequest{
 					Revision: "",
 					Number:   1,
 					Message:  "message",
@@ -88,10 +88,10 @@ func TestNotifyNotify(t *testing.T) {
 		{
 			// valid, and isRevision
 			config: Config{
-				Token: "token",
-				Owner: "owner",
-				Repo:  "repo",
-				PR: PullRequest{
+				Token:     "token",
+				NameSpace: "owner",
+				Project:   "repo",
+				MR: MergeRequest{
 					Revision: "revision-revision",
 					Number:   0,
 					Message:  "message",
@@ -104,73 +104,13 @@ func TestNotifyNotify(t *testing.T) {
 			exitCode: 0,
 		},
 		{
-			// valid, and contains destroy
-			// TODO(dtan4): check two comments were made actually
+			// apply case
 			config: Config{
-				Token: "token",
-				Owner: "owner",
-				Repo:  "repo",
-				PR: PullRequest{
-					Revision: "",
-					Number:   1,
-					Message:  "message",
-				},
-				Parser:                 terraform.NewPlanParser(),
-				Template:               terraform.NewPlanTemplate(terraform.DefaultPlanTemplate),
-				DestroyWarningTemplate: terraform.NewDestroyWarningTemplate(terraform.DefaultDestroyWarningTemplate),
-				WarnDestroy:            true,
-			},
-			body:     "Plan: 1 to add, 1 to destroy",
-			ok:       true,
-			exitCode: 0,
-		},
-		{
-			// valid, contains destroy, but not to notify
-			config: Config{
-				Token: "token",
-				Owner: "owner",
-				Repo:  "repo",
-				PR: PullRequest{
-					Revision: "",
-					Number:   1,
-					Message:  "message",
-				},
-				Parser:                 terraform.NewPlanParser(),
-				Template:               terraform.NewPlanTemplate(terraform.DefaultPlanTemplate),
-				DestroyWarningTemplate: terraform.NewDestroyWarningTemplate(terraform.DefaultDestroyWarningTemplate),
-				WarnDestroy:            false,
-			},
-			body:     "Plan: 1 to add, 1 to destroy",
-			ok:       true,
-			exitCode: 0,
-		},
-		{
-			// apply case without merge commit
-			config: Config{
-				Token: "token",
-				Owner: "owner",
-				Repo:  "repo",
-				PR: PullRequest{
+				Token:     "token",
+				NameSpace: "owner",
+				Project:   "repo",
+				MR: MergeRequest{
 					Revision: "revision",
-					Number:   0, // For apply, it is always 0
-					Message:  "message",
-				},
-				Parser:   terraform.NewApplyParser(),
-				Template: terraform.NewApplyTemplate(terraform.DefaultApplyTemplate),
-			},
-			body:     "Apply complete!",
-			ok:       true,
-			exitCode: 0,
-		},
-		{
-			// apply case as merge commit
-			// TODO(drlau): validate cfg.PR.Number = 123
-			config: Config{
-				Token: "token",
-				Owner: "owner",
-				Repo:  "repo",
-				PR: PullRequest{
-					Revision: "Merge pull request #123 from mercari/tfnotify",
 					Number:   0, // For apply, it is always 0
 					Message:  "message",
 				},

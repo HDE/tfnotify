@@ -37,6 +37,10 @@ func TestLoadFile(t *testing.T) {
 						Channel: "",
 						Bot:     "",
 					},
+					Typetalk: TypetalkNotifier{
+						Token:   "",
+						TopicID: "",
+					},
 				},
 				Terraform: Terraform{
 					Default: Default{
@@ -46,13 +50,59 @@ func TestLoadFile(t *testing.T) {
 						Template: "",
 					},
 					Plan: Plan{
-						Template: "{{ .Title }}\n{{ .Message }}\n{{if .Result}}\n<pre><code> {{ .Result }}\n</pre></code>\n{{end}}\n<details><summary>Details (Click me)</summary>\n<pre><code> {{ .Body }}\n</pre></code></details>\n",
+						Template:    "{{ .Title }}\n{{ .Message }}\n{{if .Result}}\n<pre><code>{{ .Result }}\n</pre></code>\n{{end}}\n<details><summary>Details (Click me)</summary>\n\n<pre><code>{{ .Body }}\n</pre></code></details>\n",
+						WhenDestroy: WhenDestroy{},
 					},
 					Apply: Apply{
 						Template: "",
 					},
+					UseRawOutput: false,
 				},
 				path: "../example.tfnotify.yaml",
+			},
+			ok: true,
+		},
+		{
+			file: "../example-with-destroy.tfnotify.yaml",
+			cfg: Config{
+				CI: "circleci",
+				Notifier: Notifier{
+					Github: GithubNotifier{
+						Token: "$GITHUB_TOKEN",
+						Repository: Repository{
+							Owner: "mercari",
+							Name:  "tfnotify",
+						},
+					},
+					Slack: SlackNotifier{
+						Token:   "",
+						Channel: "",
+						Bot:     "",
+					},
+					Typetalk: TypetalkNotifier{
+						Token:   "",
+						TopicID: "",
+					},
+				},
+				Terraform: Terraform{
+					Default: Default{
+						Template: "",
+					},
+					Fmt: Fmt{
+						Template: "",
+					},
+					Plan: Plan{
+						Template: "{{ .Title }}\n{{ .Message }}\n{{if .Result}}\n<pre><code>{{ .Result }}\n</pre></code>\n{{end}}\n<details><summary>Details (Click me)</summary>\n\n<pre><code>{{ .Body }}\n</pre></code></details>\n",
+						WhenDestroy: WhenDestroy{
+							Template: "## :warning: WARNING: Resource Deletion will happen :warning:\n\nThis plan contains **resource deletion**. Please check the plan result very carefully!\n",
+						},
+					},
+					Apply: Apply{
+						Template: "",
+					},
+					UseRawOutput: false,
+				},
+				path: "../example-with-destroy.tfnotify.yaml",
 			},
 			ok: true,
 		},
@@ -73,6 +123,10 @@ func TestLoadFile(t *testing.T) {
 						Channel: "",
 						Bot:     "",
 					},
+					Typetalk: TypetalkNotifier{
+						Token:   "",
+						TopicID: "",
+					},
 				},
 				Terraform: Terraform{
 					Default: Default{
@@ -82,7 +136,8 @@ func TestLoadFile(t *testing.T) {
 						Template: "",
 					},
 					Plan: Plan{
-						Template: "{{ .Title }}\n{{ .Message }}\n{{if .Result}}\n<pre><code> {{ .Result }}\n</pre></code>\n{{end}}\n<details><summary>Details (Click me)</summary>\n<pre><code> {{ .Body }}\n</pre></code></details>\n",
+						Template:    "{{ .Title }}\n{{ .Message }}\n{{if .Result}}\n<pre><code>{{ .Result }}\n</pre></code>\n{{end}}\n<details><summary>Details (Click me)</summary>\n\n<pre><code>{{ .Body }}\n</pre></code></details>\n",
+						WhenDestroy: WhenDestroy{},
 					},
 					Apply: Apply{
 						Template: "",
@@ -94,14 +149,22 @@ func TestLoadFile(t *testing.T) {
 		},
 	}
 
-	var cfg Config
 	for _, testCase := range testCases {
+		var cfg Config
+
 		err := cfg.LoadFile(testCase.file)
-		if !reflect.DeepEqual(cfg, testCase.cfg) {
-			t.Errorf("got %q but want %q", cfg, testCase.cfg)
-		}
-		if (err == nil) != testCase.ok {
-			t.Errorf("got error %q", err)
+		if err == nil {
+			if !testCase.ok {
+				t.Error("got no error but want error")
+			} else {
+				if !reflect.DeepEqual(cfg, testCase.cfg) {
+					t.Errorf("got %#v but want: %#v", cfg, testCase.cfg)
+				}
+			}
+		} else {
+			if testCase.ok {
+				t.Errorf("got error %q but want no error", err)
+			}
 		}
 	}
 }
@@ -125,6 +188,26 @@ func TestValidation(t *testing.T) {
 		},
 		{
 			contents: []byte("ci: travisci\n"),
+			expected: "notifier is missing",
+		},
+		{
+			contents: []byte("ci: codebuild\n"),
+			expected: "notifier is missing",
+		},
+		{
+			contents: []byte("ci: teamcity\n"),
+			expected: "notifier is missing",
+		},
+		{
+			contents: []byte("ci: drone\n"),
+			expected: "notifier is missing",
+		},
+		{
+			contents: []byte("ci: jenkins\n"),
+			expected: "notifier is missing",
+		},
+		{
+			contents: []byte("ci: gitlabci\n"),
 			expected: "notifier is missing",
 		},
 		{
@@ -185,6 +268,74 @@ notifier:
 `),
 			expected: "",
 		},
+		{
+			contents: []byte(`
+ci: circleci
+notifier:
+  typetalk:
+`),
+			expected: "notifier is missing",
+		},
+		{
+			contents: []byte(`
+ci: circleci
+notifier:
+  typetalk:
+    token: token
+    topic_id: 12345
+`),
+			expected: "",
+		},
+		{
+			contents: []byte(`
+ci: gitlabci
+notifier:
+  gitlab:
+    token: token
+    repository:
+      owner: owner
+`),
+			expected: "repository name is missing",
+		},
+		{
+			contents: []byte(`
+ci: gitlabci
+notifier:
+  slack:
+`),
+			expected: "notifier is missing",
+		},
+		{
+			contents: []byte(`
+ci: gitlabci
+notifier:
+  gitlab:
+    token: token
+    repository:
+      owner: owner
+      name: name
+`),
+			expected: "",
+		},
+		{
+			contents: []byte(`
+ci: gitlabci
+notifier:
+  typetalk:
+    token: token
+`),
+			expected: "Typetalk topic id is missing",
+		},
+		{
+			contents: []byte(`
+ci: circleci
+notifier:
+  typetalk:
+    token: token
+    topic_id: 12345
+`),
+			expected: "",
+		},
 	}
 	for _, testCase := range testCases {
 		cfg, err := helperLoadConfig(testCase.contents)
@@ -216,6 +367,14 @@ func TestGetNotifierType(t *testing.T) {
 		{
 			contents: []byte("repository:\n  owner: a\n  name: b\nci: circleci\nnotifier:\n  slack:\n    token: token\n"),
 			expected: "slack",
+		},
+		{
+			contents: []byte("repository:\n  owner: a\n  name: b\nci: circleci\nnotifier:\n  typetalk:\n    token: token\n"),
+			expected: "typetalk",
+		},
+		{
+			contents: []byte("repository:\n  owner: a\n  name: b\nci: gitlabci\nnotifier:\n  gitlab:\n    token: token\n"),
+			expected: "gitlab",
 		},
 	}
 	for _, testCase := range testCases {

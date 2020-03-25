@@ -18,3 +18,8 @@ terraform:
 
       <pre><code>{{ .Body }}
       </pre></code></details>
+    when_destroy:
+      template: |
+        ## :warning: WARNING: Resource Deletion will happen :warning:
+
+        This plan contains **resource deletion**. Please check the plan result very carefully!

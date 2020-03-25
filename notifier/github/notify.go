@@ -22,11 +22,23 @@ func (g *NotifyService) Notify(body string) (exit int, err error) {
 		return result.ExitCode, result.Error
 	}
 
+	_, isPlan := parser.(*terraform.PlanParser)
+	if isPlan {
+		if result.HasDestroy && cfg.WarnDestroy {
+			// Notify destroy warning as a new comment before normal plan result
+			if err = g.notifyDestoryWarning(body, result); err != nil {
+				return result.ExitCode, err
+			}
+		}
+	}
+
 	template.SetValue(terraform.CommonTemplate{
-		Message: cfg.PR.Message,
-		Result:  result.Result,
-		Body:    body,
-		Link:    cfg.CI,
+		Title:        cfg.PR.Title,
+		Message:      cfg.PR.Message,
+		Result:       result.Result,
+		Body:         body,
+		Link:         cfg.CI,
+		UseRawOutput: cfg.UseRawOutput,
 	})
 	body, err = template.Execute()
 	if err != nil {
@@ -40,16 +52,43 @@ func (g *NotifyService) Notify(body string) (exit int, err error) {
 	}
 
 	_, isApply := parser.(*terraform.ApplyParser)
-	if !cfg.PR.IsNumber() && isApply {
-		commits, err := g.client.Commits.List(cfg.PR.Revision)
-		if err != nil {
-			return result.ExitCode, err
+	if isApply {
+		prNumber, err := g.client.Commits.MergedPRNumber(cfg.PR.Revision)
+		if err == nil {
+			cfg.PR.Number = prNumber
+		} else if !cfg.PR.IsNumber() {
+			commits, err := g.client.Commits.List(cfg.PR.Revision)
+			if err != nil {
+				return result.ExitCode, err
+			}
+			lastRevision, _ := g.client.Commits.lastOne(commits, cfg.PR.Revision)
+			cfg.PR.Revision = lastRevision
 		}
-		lastRevision, _ := g.client.Commits.lastOne(commits, cfg.PR.Revision)
-		cfg.PR.Revision = lastRevision
 	}
 
 	return result.ExitCode, g.client.Comment.Post(body, PostOptions{
+		Number:   cfg.PR.Number,
+		Revision: cfg.PR.Revision,
+	})
+}
+
+func (g *NotifyService) notifyDestoryWarning(body string, result terraform.ParseResult) error {
+	cfg := g.client.Config
+	destroyWarningTemplate := g.client.Config.DestroyWarningTemplate
+	destroyWarningTemplate.SetValue(terraform.CommonTemplate{
+		Title:        cfg.PR.DestroyWarningTitle,
+		Message:      cfg.PR.DestroyWarningMessage,
+		Result:       result.Result,
+		Body:         body,
+		Link:         cfg.CI,
+		UseRawOutput: cfg.UseRawOutput,
+	})
+	body, err := destroyWarningTemplate.Execute()
+	if err != nil {
+		return err
+	}
+
+	return g.client.Comment.Post(body, PostOptions{
 		Number:   cfg.PR.Number,
 		Revision: cfg.PR.Revision,
 	})

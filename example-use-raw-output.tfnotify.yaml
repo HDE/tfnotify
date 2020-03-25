@@ -6,6 +6,7 @@ notifier:
       owner: "mercari"
       name: "tfnotify"
 terraform:
+  use_raw_output: true
   plan:
     template: |
       {{ .Title }}

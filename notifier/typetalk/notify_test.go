@@ -1,11 +1,12 @@
-package slack
+package typetalk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/lestrrat-go/slack/objects"
 	"github.com/mercari/tfnotify/terraform"
+	typetalkShared "github.com/nulab/go-typetalk/typetalk/shared"
+	typetalk "github.com/nulab/go-typetalk/typetalk/v1"
 )
 
 func TestNotify(t *testing.T) {
@@ -18,8 +19,7 @@ func TestNotify(t *testing.T) {
 		{
 			config: Config{
 				Token:    "token",
-				Channel:  "channel",
-				Botname:  "botname",
+				TopicID:  "12345",
 				Message:  "",
 				Parser:   terraform.NewPlanParser(),
 				Template: terraform.NewPlanTemplate(terraform.DefaultPlanTemplate),
@@ -31,20 +31,19 @@ func TestNotify(t *testing.T) {
 		{
 			config: Config{
 				Token:    "token",
-				Channel:  "",
-				Botname:  "botname",
+				TopicID:  "12345",
 				Message:  "",
 				Parser:   terraform.NewPlanParser(),
 				Template: terraform.NewPlanTemplate(terraform.DefaultPlanTemplate),
 			},
-			body:     "Plan: 1 to add",
+			body:     "BLUR BLUR BLUR",
 			exitCode: 1,
 			ok:       false,
 		},
 	}
 	fake := fakeAPI{
-		FakeChatPostMessage: func(ctx context.Context, attachments []*objects.Attachment) (*objects.ChatResponse, error) {
-			return nil, nil
+		FakeChatPostMessage: func(ctx context.Context, message string) (*typetalk.PostedMessageResult, *typetalkShared.Response, error) {
+			return nil, nil, nil
 		},
 	}
 

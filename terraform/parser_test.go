@@ -6,7 +6,8 @@ import (
 	"testing"
 )
 
-const fmtSuccessResult = `
+// terraform fmt -diff=true -write=false (version 0.11.x)
+const fmtFailResult0_11 = `
 google_spanner_database.tf
 diff a/google_spanner_database.tf b/google_spanner_database.tf
 --- /tmp/398669432
@@ -26,6 +27,19 @@ diff a/google_spanner_instance.tf b/google_spanner_instance.tf
  #   num_nodes    = 1
  # }
 +
+`
+
+// terraform fmt -diff=true -write=false (version 0.12.x)
+const fmtFailResult0_12 = `
+versions.tf
+--- old/versions.tf
++++ new/versions.tf
+@@ -1,4 +1,4 @@
+ 
+ terraform {
+-  required_version     = ">= 0.12"
++  required_version = ">= 0.12"
+ }
 `
 
 const planSuccessResult = `
@@ -118,6 +132,50 @@ configuration and real physical resources that exist. As a result, no
 actions need to be performed.
 `
 
+const planHasDestroy = `
+google_bigquery_dataset.tfnotify_echo: Refreshing state...
+google_project.team: Refreshing state...
+pagerduty_team.team: Refreshing state...
+data.pagerduty_vendor.datadog: Refreshing state...
+data.pagerduty_user.service_owner[1]: Refreshing state...
+data.pagerduty_user.service_owner[2]: Refreshing state...
+data.pagerduty_user.service_owner[0]: Refreshing state...
+google_project_services.team: Refreshing state...
+google_project_iam_member.team[1]: Refreshing state...
+google_project_iam_member.team[2]: Refreshing state...
+google_project_iam_member.team[0]: Refreshing state...
+google_project_iam_member.team_platform[1]: Refreshing state...
+google_project_iam_member.team_platform[2]: Refreshing state...
+google_project_iam_member.team_platform[0]: Refreshing state...
+pagerduty_team_membership.team[2]: Refreshing state...
+pagerduty_schedule.secondary: Refreshing state...
+pagerduty_schedule.primary: Refreshing state...
+pagerduty_team_membership.team[0]: Refreshing state...
+pagerduty_team_membership.team[1]: Refreshing state...
+pagerduty_escalation_policy.team: Refreshing state...
+pagerduty_service.team: Refreshing state...
+pagerduty_service_integration.datadog: Refreshing state...
+
+------------------------------------------------------------------------
+
+An execution plan has been generated and is shown below.
+Resource actions are indicated with the following symbols:
+  - destroy
+
+Terraform will perform the following actions:
+
+  - google_project_iam_member.team_platform[2]
+
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+
+------------------------------------------------------------------------
+
+Note: You didn't specify an "-out" parameter to save this plan, so Terraform
+can't guarantee that exactly these actions will be performed if
+"terraform apply" is subsequently run.
+`
+
 const applySuccessResult = `
 data.terraform_remote_state.teams_platform_development: Refreshing state...
 google_project.my_service: Refreshing state...
@@ -165,25 +223,14 @@ aws_iam_user_policy.teams_terraform: Refreshing state...
 aws_iam_role_policy_attachment.datadog_aws_integration: Refreshing state...
 google_dns_managed_zone.tfnotifyapps_com: Refreshing state...
 google_dns_record_set.dev_tfnotifyapps_com: Refreshing state...
-google_compute_global_address.teams_web_tfnotify_in: Creating...
-  address:    "" => "<computed>"
-  ip_version: "" => "IPV4"
-  name:       "" => "web-tfnotify-in"
-  project:    "" => "tfnotify-jp-tfnotify-prod"
-  self_link:  "" => "<computed>"
 
-Error: Error applying plan:
 
-1 error(s) occurred:
+Error: Batch "project/tfnotify-jp-tfnotify-prod/services:batchEnable" for request "Enable Project Services tfnotify-jp-tfnotify-prod: map[logging.googleapis.com:{}]" returned error: failed to send enable services request: googleapi: Error 403: The caller does not have permission, forbidden
 
-* google_compute_global_address.teams_web_tfnotify_in: 1 error(s) occurred:
+  on .terraform/modules/tfnotify-jp-tfnotify-prod/google_project_service.tf line 6, in resource "google_project_service" "gcp_api_service":
+   6: resource "google_project_service" "gcp_api_service" {
 
-* google_compute_global_address.teams_web_tfnotify_in: Error creating address: googleapi: Error 409: The resource 'projects/tfnotify-jp-tfnotify-prod/global/addresses/teams-web-tfnotify-in' already exists, alreadyExists
 
-Terraform does not automatically rollback in the face of errors.
-Instead, your Terraform state file has been partially updated with
-any resources that successfully completed. Please address the error
-above and apply again to incrementally change your infrastructure.
 `
 
 func TestDefaultParserParse(t *testing.T) {
@@ -216,7 +263,16 @@ func TestFmtParserParse(t *testing.T) {
 	}{
 		{
 			name: "diff",
-			body: fmtSuccessResult,
+			body: fmtFailResult0_11,
+			result: ParseResult{
+				Result:   "There is diff in your .tf file (need to be formatted)",
+				ExitCode: 1,
+				Error:    nil,
+			},
+		},
+		{
+			name: "diff",
+			body: fmtFailResult0_12,
 			result: ParseResult{
 				Result:   "There is diff in your .tf file (need to be formatted)",
 				ExitCode: 1,
@@ -251,18 +307,20 @@ func TestPlanParserParse(t *testing.T) {
 			name: "plan ok pattern",
 			body: planSuccessResult,
 			result: ParseResult{
-				Result:   "Plan: 1 to add, 0 to change, 0 to destroy.",
-				ExitCode: 0,
-				Error:    nil,
+				Result:     "Plan: 1 to add, 0 to change, 0 to destroy.",
+				HasDestroy: false,
+				ExitCode:   0,
+				Error:      nil,
 			},
 		},
 		{
 			name: "no stdin",
 			body: "",
 			result: ParseResult{
-				Result:   "",
-				ExitCode: 1,
-				Error:    errors.New("cannot parse plan result"),
+				Result:     "",
+				HasDestroy: false,
+				ExitCode:   1,
+				Error:      errors.New("cannot parse plan result"),
 			},
 		},
 		{
@@ -283,9 +341,20 @@ func TestPlanParserParse(t *testing.T) {
 			name: "plan no changes",
 			body: planNoChanges,
 			result: ParseResult{
-				Result:   "No changes. Infrastructure is up-to-date.",
-				ExitCode: 0,
-				Error:    nil,
+				Result:     "No changes. Infrastructure is up-to-date.",
+				HasDestroy: false,
+				ExitCode:   0,
+				Error:      nil,
+			},
+		},
+		{
+			name: "plan has destroy",
+			body: planHasDestroy,
+			result: ParseResult{
+				Result:     "Plan: 0 to add, 0 to change, 1 to destroy.",
+				HasDestroy: true,
+				ExitCode:   0,
+				Error:      nil,
 			},
 		},
 	}
@@ -325,18 +394,12 @@ func TestApplyParserParse(t *testing.T) {
 			name: "apply ng pattern",
 			body: applyFailureResult,
 			result: ParseResult{
-				Result: `Error: Error applying plan:
+				Result: `Error: Batch "project/tfnotify-jp-tfnotify-prod/services:batchEnable" for request "Enable Project Services tfnotify-jp-tfnotify-prod: map[logging.googleapis.com:{}]" returned error: failed to send enable services request: googleapi: Error 403: The caller does not have permission, forbidden
 
-1 error(s) occurred:
+  on .terraform/modules/tfnotify-jp-tfnotify-prod/google_project_service.tf line 6, in resource "google_project_service" "gcp_api_service":
+   6: resource "google_project_service" "gcp_api_service" {
 
-* google_compute_global_address.teams_web_tfnotify_in: 1 error(s) occurred:
-
-* google_compute_global_address.teams_web_tfnotify_in: Error creating address: googleapi: Error 409: The resource 'projects/tfnotify-jp-tfnotify-prod/global/addresses/teams-web-tfnotify-in' already exists, alreadyExists
-
-Terraform does not automatically rollback in the face of errors.
-Instead, your Terraform state file has been partially updated with
-any resources that successfully completed. Please address the error
-above and apply again to incrementally change your infrastructure.`,
+`,
 				ExitCode: 1,
 				Error:    nil,
 			},
